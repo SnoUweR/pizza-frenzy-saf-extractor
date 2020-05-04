@@ -36,7 +36,7 @@ namespace PizzaFrenzySAFExtractor
                 safFilePath = Console.ReadLine();
             }
             
-            new SafExtractor(rootDirectoryForSaving, safFilePath).Extract();
+            new SafExtractor(rootDirectoryForSaving, safFilePath, true).Extract();
             Console.WriteLine("Extracting completed.");
             Console.ReadKey();
         }

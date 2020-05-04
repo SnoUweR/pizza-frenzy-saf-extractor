@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace PizzaFrenzySAFExtractor
 {
@@ -9,8 +10,9 @@ namespace PizzaFrenzySAFExtractor
     {
         private string _rootDirectoryForSaving;
         private string _safFilePath;
+        private bool _makePngFromJpegAndMask;
 
-        public SafExtractor(string rootDirectoryForSaving, string safFilePath)
+        public SafExtractor(string rootDirectoryForSaving, string safFilePath, bool makePngFromJpegAndMask)
         {
             if (string.IsNullOrEmpty(rootDirectoryForSaving))
                 throw new ArgumentNullException($"{nameof(rootDirectoryForSaving)} can't be null or empty");
@@ -23,6 +25,7 @@ namespace PizzaFrenzySAFExtractor
             
             _rootDirectoryForSaving = rootDirectoryForSaving;
             _safFilePath = safFilePath;
+            _makePngFromJpegAndMask = makePngFromJpegAndMask;
         }
         
         public void Extract()
@@ -43,16 +46,45 @@ namespace PizzaFrenzySAFExtractor
                                 savingFile.WriteByte(reader.ReadByte());
                         }
                     }
+
+                    if (_makePngFromJpegAndMask)
+                    {
+                        Parallel.ForEach(filesList, file =>
+                        {
+                            var fileName = Path.GetFileName(file.Path);
+                            if (!fileName.EndsWith(".jpg") || fileName.StartsWith("_"))
+                                return;
+                            
+                            var jpegFilePath = GetFullPath(file);
+                            var jpegFileDirectory = Path.GetDirectoryName(jpegFilePath);
+                            var fileNameWithoutExtensions = Path.GetFileNameWithoutExtension(fileName);
+                            var maskFilePath = Path.Combine(jpegFileDirectory, $"_{fileNameWithoutExtensions}.png");
+
+                            if (!File.Exists(maskFilePath))
+                                return;
+
+                            var resultFilePath = Path.Combine(jpegFileDirectory, $"{fileNameWithoutExtensions}.png");
+                            MaskProcessor.CreatePng(jpegFilePath, maskFilePath, resultFilePath);
+
+                            File.Delete(jpegFilePath);
+                            File.Delete(maskFilePath);
+                        });
+                    }
                 }
             }
         }
 
-        private FileStream CreateFileStreamForSaving(SAFFileInfo fileInfo)
+        private string GetFullPath(SAFFileInfo fileInfo)
         {
             if (string.IsNullOrEmpty(fileInfo.Path))
                 throw new ArgumentException($"{nameof(fileInfo.Path)} is null or empty");
 
-            var fullPath = Path.Combine(_rootDirectoryForSaving, fileInfo.Path);
+            return Path.Combine(_rootDirectoryForSaving, fileInfo.Path);
+        }
+
+        private FileStream CreateFileStreamForSaving(SAFFileInfo fileInfo)
+        {
+            var fullPath = GetFullPath(fileInfo);
             var directory = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrEmpty(directory))
                 throw new Exception($"Can't get DirectoryName from path {fullPath}");
